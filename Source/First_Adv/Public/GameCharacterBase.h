@@ -29,6 +29,7 @@ public:
 	// Update関数
 	virtual void Tick(float DeltaTime) override;
 	// EnhancedInputにバインドするための関数
+	// ポインタとりあえず参照渡しとして覚えておく
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
 };
