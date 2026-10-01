@@ -16,8 +16,6 @@ Unreal Engine（UE）において外部シナリオデータを読み込み、Wi
 *   `ID` (`FString` / `FName`): 一意の行識別子
 *   `Speaker` (`FText`): 発言者名
 *   `Dialogue` (`FText`): セリフテキスト
-*   `CharacterImage` (`TSoftObjectPtr<UTexture2D>`): 立ち絵アセットへの参照（メモリ負荷軽減のためソフト参照）
-*   `VoiceAudio` (`TSoftObjectPtr<USoundBase>`): ボイス・SEアセットへの参照（ソフト参照）
 *   `ChoiceGroup` (`TArray<FChoiceData>`): 選択肢データリスト（選択肢テキスト、遷移先IDなど）
 
 #### ファイル形式の選定
