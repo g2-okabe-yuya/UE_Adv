@@ -39,6 +39,8 @@
 *.opensdf
 *.sdf
 *.VC.db
+Assets/
+Fab/
 *.VC.opendb
 .vsconfig
 

@@ -4,19 +4,19 @@
 #include "Kismet/KismetSystemLibrary.h"
 
 // 初期化時にDataTableを読み込む
-void UAdvSubSystem::Initialize(FSubsystemCollectionBase& Collection)
-{
-	Super::Initialize(Collection);
-	bIsDataLoaded  = false;
-	// 指定したパスをアセットとしてロードするための処理
-	FString strPath = TEXT("/Game/DataTable/ScenarioData.ScenarioData");
-	// スマートポインタ
-	// アドレスだけを保持し、使用時までメモリへのロードをおこなわない
-	// DataTableをPathで指定して取得する
-	ScenarioDataTable = TSoftObjectPtr<UDataTable>(FSoftObjectPath(strPath));
-	// 非同期ロードのリクエストを開始する
-	RequestAsyncLoadDataTable();
-}
+// void UAdvSubSystem::Initialize(FSubsystemCollectionBase& Collection)
+// {
+// 	Super::Initialize(Collection);
+// 	bIsDataLoaded  = false;
+// 	// 指定したパスをアセットとしてロードするための処理
+// 	FString strPath = TEXT("/Game/DataTable/ScenarioData.ScenarioData");
+// 	// スマートポインタ
+// 	// アドレスだけを保持し、使用時までメモリへのロードをおこなわない
+// 	// DataTableをPathで指定して取得する
+// 	ScenarioDataTable = TSoftObjectPtr<UDataTable>(FSoftObjectPath(strPath));
+// 	// 非同期ロードのリクエストを開始する
+// 	RequestAsyncLoadDataTable();
+// }
 
 // データテーブルの非同期ロードをリクエストする関数
 void UAdvSubSystem::RequestAsyncLoadDataTable()

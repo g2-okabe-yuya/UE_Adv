@@ -36,7 +36,7 @@ public:
 	}
 	
 	// 初期化
-	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+	//virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	
 	// シナリオ読み込みをおこなう
 private:
