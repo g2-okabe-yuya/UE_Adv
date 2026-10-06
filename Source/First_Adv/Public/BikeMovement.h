@@ -29,8 +29,10 @@ struct FBikePhysicsState
 	// 回転
 	FMyQuat Rotation = FMyQuat::IdentityQuat();
 	
-	// エンジンの計算
+	// エンジンの回転数
 	float EngineRPM = 1000.0f;
+	// 現在のギア
+	int32 CurrentGear = 1;
 	// バンク角
 	float LeanAngle = 0.0f;
 	// ステアリング角
@@ -50,9 +52,10 @@ public:
 protected:
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 	
-	// 生ポインタというものがある
-	//UPROPERTY(EditAnywhere, Category="ACamera")
-	UCameraComponent* Camera;
+	UPROPERTY()
+	TObjectPtr<UCameraComponent> CameraComponent;
+	UPROPERTY()
+	TObjectPtr<USpringArmComponent> SpringArmComponent;
 	
 	UPROPERTY(EditAnywhere,Category="Input")
 	UInputMappingContext* DefaultMappingContext;
@@ -66,13 +69,32 @@ protected:
 	UInputAction* IA_Steer;
 
 private:
-	// ToDo : Editorで設定できるようにする
-	// 質量
+	// 車体の質量
 	float BikeMass = 200.0f;
-	float MaxForce = 3000.f;
 	float MaxBrakeForce = 5000.f;
+	// コーナリング剛性
+	float CorneringStiffness = 15.0f;
 	float AirResistanceCoefficient = 0.35f;
+	// 最大バンク角
+	float MaxLeanAngleRad = 0.87f;
+	// 傾き(ロール)の追従スピード(補完スピード)
+	float LeanResponseSpeed = 5.0f;
+	// エンジン用のパラメータ
+	float IdleRPM = 1000.f;
+	float MaxRPM = 12000.f;
+	// リアタイヤの半径
+	float RearWheelRadius = 0.31f;
+	// 一次減速比(エンジンからクラッチ)
+	float PrimaryReductionRatio = 1.75f;
+	// ファイナルドライブ比(スプロケット・チェーン)
+	float FinalDriveRatio = 2.80f;
+	// 水平方向(Yaw)の回転状態を保持するQuaternion
+	FMyQuat YawRotation = FMyQuat::IdentityQuat();
+	// 1速から6速の各ギア比
+	TArray<float> GearRatios = {2.60f,1.95f,1.55f,1.30f,1.12f,0.98f};
 	
+	// キャンバー剛性(N/rad)
+	float CamberStiffness = 800.0f;
 	// 自然減速
 	float RollingResistance = 400.0f;
 	
@@ -85,14 +107,21 @@ private:
 	// 状態管理用ステート
 	FBikePhysicsState PhysicsState;
 	
+	void Initialize();
 	void UpdateCustomPhysics(float DeltaTime);
 	void UpdateAngularVelocity(float DeltaTime);
-	void Initialize();
-	
 	void OnThrottleInput(const FInputActionValue& Value);
 	void OnThrottleCompleted(const FInputActionValue& value);
 	void OnSteeringInput(const FInputActionValue& Value);
 	void OnSteeringInputCompleted(const FInputActionValue& value);
-	// カメラの向きに合わせてバイクの物理状態(Rotation)の向きを直接補正・同期する
-	void AlignForwardToCamera();
+	float CalculateEngineRPM(float SpeedMPS);
+	float GetEngineTorqueAtRPM(float RPM) const;
+	float CalculateDriveForce(float SpeedMPS);
+	float CalculateCamberThrust(float LeanAngleRad) const;
+	void UpdateLeanAngle(float deltaTime);
+	void OnShiftUp(const FInputActionValue& Value);
+	void OnShiftDown(const FInputActionValue& Value);
+	float CalculateSlipAngle(float SteeringAngleRad) const;
+	float CalculatePacejkaLateralForce(float SlipAngle) const;
+	FMyVector3D GetCameraForwardVector() const;
 };

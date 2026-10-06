@@ -82,6 +82,16 @@ struct FMyVector3D
 		return FMyVector3D(0.0f, 0.0f, 0.0f);
 	}
 	
+	// ベクトルの外積
+	FMyVector3D Cross(const FMyVector3D& InVector) const
+	{
+		return FMyVector3D(
+			Y * InVector.Z - Z * InVector.Y,
+			Z * InVector.X - X * InVector.Z,
+			X * InVector.Y - Y * InVector.X
+			);
+	}
+	
 	// ベクトルの内積 (Dot Product) A・B = AxBx + AyBy + AzBz
 	float Dot(const FMyVector3D& Other) const
 	{
@@ -127,12 +137,18 @@ struct FMyQuat
 	// Quaternionの生成
 	static FMyQuat FromAxisAngle(const FMyVector3D& Axis, float AngleInRadians)
 	{
+		float AxisSize = Axis.Size();
+		if (AxisSize < 0.00001f)
+		{
+			return IdentityQuat();
+		}
+		
 		const float HalfAngle = AngleInRadians * 0.5f;
 		// 半角に対するSinΘとCosΘを計算
 		const float SinHalf = std::sin(HalfAngle);
 		const float CosHalf = std::cos(HalfAngle);
 		
-		const FMyVector3D NormalizedAxis = Axis.Normalize();
+		const FMyVector3D NormalizedAxis = Axis * (1.0f /AxisSize);
 		
 		return FMyQuat(NormalizedAxis.X*SinHalf,NormalizedAxis.Y*SinHalf,NormalizedAxis.Z*SinHalf,CosHalf);
 	}
@@ -140,11 +156,12 @@ struct FMyQuat
 	// かけ算
 	FMyQuat operator*(const FMyQuat& Quat) const
 	{
-		return FMyQuat(
-		W * Quat.X + X * Quat.W + Y * Quat.Z - Z * Quat.Y, 
-		W * Quat.Y - X * Quat.Z + Y * Quat.W + Z * Quat.X, 
-		W * Quat.Z + X * Quat.Y - Y * Quat.X + Z * Quat.W,
-		W * Quat.W - X * Quat.X - Y * Quat.Y - Z * Quat.Z ); 
+		float OutX = W * Quat.X + X * Quat.W + Y * Quat.Z - Z * Quat.Y;
+		float OutY = W * Quat.Y - X * Quat.Z + Y * Quat.W + Z * Quat.X;
+		float OutZ = W * Quat.Z + X * Quat.Y - Y * Quat.X + Z * Quat.W;
+		float OutW = W * Quat.W - X * Quat.X - Y * Quat.Y - Z * Quat.Z;
+		
+		return FMyQuat(OutX, OutY, OutZ, OutW);
 	}
 	
 	// 回転後のForwardVectorを直接計算
@@ -209,12 +226,12 @@ struct FMyRotator
 		float SY = std::sin(HalfYaw);
 		float CY = std::cos(HalfYaw);
 		
-		return FMyQuat(
-			CR * CP * CY + SR * SP * SY,
-			SR * CP * CY - CR * SP * SY,
-			CR * SP * CY + SR * CP * SY,
-			CR * CP * SY - SR * SP * CY
-			);
+		float OutX = SR * CP * CY - CR * SP * SY; 
+		float OutY = CR * SP * CY + SR * CP * SY; 
+		float OutZ = CR * CP * SY - SR * SP * CY; 
+		float OutW = CR * CP * CY + SR * SP * SY; 
+		
+		return FMyQuat(OutX, OutY, OutZ, OutW);
 	}
 	
 	FRotator ToFRotator() const
