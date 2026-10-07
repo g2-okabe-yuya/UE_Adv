@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "MyVector3D.h"
 #include "InputMappingContext.h"
+#include "FBikeRigidBodyDynamics.h"
 #include "Camera/CameraComponent.h"
 #include  "InputAction.h"
 #include "InputActionValue.h"
@@ -11,10 +12,7 @@
 
 
 // 前方宣言
-class UBoxComponent;
-class UStaticMeshComponent;
 class USpringArmComponent;
-class UCameraComponent;
 class UEnhancedInputComponent;
 
 // Bikeの物理計算用構造体
@@ -30,7 +28,7 @@ struct FBikePhysicsState
 	FMyQuat Rotation = FMyQuat::IdentityQuat();
 	
 	// エンジンの回転数
-	float EngineRPM = 1000.0f;
+	float EngineRPM =0.0f;
 	// 現在のギア
 	int32 CurrentGear = 1;
 	// バンク角
@@ -71,10 +69,18 @@ protected:
 private:
 	// 車体の質量
 	float BikeMass = 200.0f;
+	float Pi = 3.14159265358979323846f;
 	float MaxBrakeForce = 5000.f;
 	// コーナリング剛性
 	float CorneringStiffness = 15.0f;
+	// 空気抵抗係数
 	float AirResistanceCoefficient = 0.35f;
+	// 最大トルク量
+	float MaxTorque = 110.0f;
+	// トルクカーブの滑らかさを決定する
+	float TorqueCurve = 0.4f;
+	// 最大旋回角速度
+	float MaxYawRate = 1.2f;
 	// 最大バンク角
 	float MaxLeanAngleRad = 0.87f;
 	// 傾き(ロール)の追従スピード(補完スピード)
@@ -107,7 +113,13 @@ private:
 	// 状態管理用ステート
 	FBikePhysicsState PhysicsState;
 	
+	// 6Dof 剛体物理エンジン
+	FBikeRigidBodyDynamics DynamicsEngine;
+	FBikeRigidBodyState RigidBodyState;
+	
 	void Initialize();
+	// 前に力を与える計算
+	FMyVector3D ForwardVector(float CurrentSpeed);
 	void UpdateCustomPhysics(float DeltaTime);
 	void UpdateAngularVelocity(float DeltaTime);
 	void OnThrottleInput(const FInputActionValue& Value);
@@ -117,11 +129,14 @@ private:
 	float CalculateEngineRPM(float SpeedMPS);
 	float GetEngineTorqueAtRPM(float RPM) const;
 	float CalculateDriveForce(float SpeedMPS);
+	// バンク角を計算して車体を傾ける
+	void BankAngle(float DeltaTime); 
+	float TotalReductionRatio();
 	float CalculateCamberThrust(float LeanAngleRad) const;
 	void UpdateLeanAngle(float deltaTime);
 	void OnShiftUp(const FInputActionValue& Value);
 	void OnShiftDown(const FInputActionValue& Value);
+	float LateralAcceleration() const;
 	float CalculateSlipAngle(float SteeringAngleRad) const;
 	float CalculatePacejkaLateralForce(float SlipAngle) const;
-	FMyVector3D GetCameraForwardVector() const;
 };
