@@ -112,8 +112,10 @@ void FBikeRigidBodyDynamics::UpdateDynamics(FBikeRigidBodyState& InOutState,
 	float NetSteeringTorque = SteeringTorqueInput + CalculateSelfSteeringTorque(InOutState, FrontLateralForce);
 	
 	float SteeringAngularAcceleration = NetSteeringTorque / SteeringInertia;
+	// ステアリング角速度の更新
 	InOutState.SteeringAngularVelocity += SteeringAngularAcceleration * DeltaTime;
-	InOutState.SteeringAngularVelocity += InOutState.SteeringAngularVelocity * DeltaTime;
+	// ステアリング角度へ角度変化量を計算
+	InOutState.SteeringAngle += InOutState.SteeringAngularVelocity * DeltaTime;
 	
 	// ハンドル切れの角の上限クランプ
 	InOutState.SteeringAngle = std::clamp(InOutState.SteeringAngle,-0.61f,0.61f);

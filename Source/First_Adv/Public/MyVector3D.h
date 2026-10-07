@@ -164,8 +164,18 @@ struct FMyQuat
 		return FMyQuat(OutX, OutY, OutZ, OutW);
 	}
 	
+	// スカラー倍の実装
+	FMyQuat operator*(float Scalar) const
+	{
+		return FMyQuat(
+			X * Scalar,
+			Y * Scalar,
+			Z * Scalar,
+			W * Scalar
+		);
+	}
+	
 	// 回転後のForwardVectorを直接計算
-	// ToDo : 回転行列の短縮計算の意味が理解できないので覚える
 	FMyVector3D GetForwardVector() const
 	{
 		// 単位ベクトル(1,0,0)をQuaternionで回転させた結果を展開した式
