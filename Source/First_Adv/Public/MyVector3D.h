@@ -63,6 +63,11 @@ struct FMyVector3D
 		return FMyVector3D(X * Scalar, Y * Scalar, Z * Scalar);
 	}
 	
+	friend FMyVector3D operator*(float Scalar, const FMyVector3D& InVector)
+	{
+		return FMyVector3D(InVector.X * Scalar,InVector.Y * Scalar,InVector.Z * Scalar);
+	}
+	
 	FMyVector3D Normalize() const
 	{
 		float VectorSize = Size();
@@ -90,6 +95,14 @@ struct FMyVector3D
 			Z * InVector.X - X * InVector.Z,
 			X * InVector.Y - Y * InVector.X
 			);
+	}
+	
+	// 2点間の直線距離を求める
+	static float Distance(const FMyVector3D& Start,const FMyVector3D& End)
+	{
+		// Start(X1,Y1,Z1),End(X2,Y2,Z3)
+		// ^(x2-x1)*(x2-x1) + (y2-y1)*(y2-y1) + (z2-z1)*(z2-z1)
+		return std::sqrt((End.X - Start.X) * (End.X - Start.X) + (End.Y - Start.Y)*(End.Y - Start.Y) + (End.Z - Start.Z)*(End.Z - Start.Z));
 	}
 	
 	// ベクトルの内積 (Dot Product) A・B = AxBx + AyBy + AzBz
