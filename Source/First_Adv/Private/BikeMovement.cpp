@@ -383,7 +383,7 @@ void ABikeMovement::BankAngle(float DeltaTime)
 	float YawDeg   = CurrentYawRad * RadToDeg;
 	
 	// オイラー角からQuatに変換
-	FMyRotator FinalRotator(RollDeg, PitchDeg, YawDeg);
+	FMyRotator FinalRotator(-RollDeg, PitchDeg, YawDeg);
 	PhysicsState.Rotation = FinalRotator.ToQuat();
 }
 
