@@ -1,7 +1,9 @@
 #include "SplineMapCreator.h"
-
 #include "MyVector3D.h"
 #include "Components/SplineMeshComponent.h"
+#include "GameFramework/PlayerStart.h"
+
+#include "CoreMinimal.h"
 
 ASplineMapCreator::ASplineMapCreator()
 {
@@ -12,7 +14,6 @@ ASplineMapCreator::ASplineMapCreator()
 void ASplineMapCreator::BeginPlay()
 {
 	Super::BeginPlay();
-	GenerateSplineMap();
 }
 
 void ASplineMapCreator::Tick(float DeltaTime)
@@ -63,6 +64,48 @@ void ASplineMapCreator::GenerateSplineMap()
 
 		CreateStaticMeshComponent(StartPos.ToFVector(),EndPos.ToFVector(),StartTangent.ToFVector(),EndTangent.ToFVector());
 	}
+	
+	// スタート地点を決定
+	// 中心から上面の高さまでを取得
+	float MeshHalf = RoadMesh->GetBounds().BoxExtent.Z;
+	GameStartPos = new FMyVector3D(ControlPoints[0].X,ControlPoints[0].Y,ControlPoints[0].Z + MeshHalf*RoadScale.Y + 50);
+	// 点の進行方向ベクトルを取得し回転に変換する
+	FMyVector3D Direction = (ControlPoints[1] - ControlPoints[0]).Normalize();
+	// 方向ベクトルを計算
+	float YawRad =  std::atan2(Direction.X, Direction.Z);
+	constexpr float RadToDeg = 180.0f / 3.14159265358979323846f;
+	float YawDeg = YawRad * RadToDeg;
+	// 進行方向向きにむかせる
+	FMyRotator PlayerStartRotation = FMyRotator(0.0f, YawDeg, 0.0f);
+	
+	// Spawn時に障害物があっても無視して生成する
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	UWorld* World = GetWorld();
+	// APlayerStartをワールド座標に動的生成
+	APlayerStart* NewPlayerStartActor = World->SpawnActor<APlayerStart>(
+		APlayerStart::StaticClass(),
+		GameStartPos->ToFVector(),
+		PlayerStartRotation.ToFRotator(),
+		SpawnParams);
+	
+	if (NewPlayerStartActor)
+	{
+		// 1. 生成位置に赤い球体を描画（半径50cm、10秒間表示）
+		DrawDebugSphere(GetWorld(), GameStartPos->ToFVector(), 50.0f, 12, FColor::Red, false, 10.0f, 0, 2.0f);
+
+		// 2. 向き（トランスフォーム）を示す矢印を描画
+		DrawDebugCoordinateSystem(GetWorld(), GameStartPos->ToFVector(), PlayerStartRotation.ToFRotator(), 100.0f, false, 10.0f, 0, 3.0f);
+	}
+}
+
+// 最初の点にPlayerStartをおいてゲーム開始時にマップが生成されたタイミングで一緒に生成
+// そのPlayerStartを置かれた後にPlayerを置きたい
+// そこをスタート位置にして一周したらゴールの仕組みにしたい
+// バイクの配置みたいにPlayerを一番前にして敵AIを斜め後ろに配置して自動でPlayerの後ろに追従してもらうようにしたい
+FMyVector3D ASplineMapCreator::GetStartPos() const
+{
+	return *GameStartPos;
 }
 
 // SplineMeshComponentを使用した簡単な道路の生成
