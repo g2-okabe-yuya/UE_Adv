@@ -1,9 +1,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "MyVector3D.h"
-#include "Components/SplineMeshComponent.h"
 #include "GameFramework/Actor.h"
+#include "MyVector3D.h"
 #include "SplineMapCreator.generated.h"
 
 UCLASS()
@@ -14,8 +13,12 @@ class FIRST_ADV_API ASplineMapCreator : public AActor
 public:	
 	ASplineMapCreator();
 	void GenerateSplineMap();
+	// スタート地点(Playerが生成される位置を返す)
+	FMyVector3D GetStartPos() const;
 	void CreateStaticMeshComponent(const FVector& StartPos, const FVector& EndPos, const FVector& StartTangent,
-	                               const FVector& EndTangent);
+		const FVector& EndTangent);
+	// スタート地点を保持する
+	FMyVector3D* GameStartPos;
 
 	virtual void Tick(float DeltaTime) override;
 	
@@ -27,7 +30,8 @@ public:
 	FVector2D RoadScale;
 	UPROPERTY(EditAnywhere, Category = "Map Settings")
 	float Radius = 100.0f;
-
+	UPROPERTY(EditAnywhere, Category = "Map Settings")
+	UClass* BikeActor = nullptr;
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;

@@ -121,13 +121,13 @@ struct FMyVector3D
 // Quaternion
 struct FMyQuat
 {
-	float X = 1.0f;
+	float X = 0.0f;
 	float Y = 0.0f;
 	float Z = 0.0f;
-	float W = 0.0f;
+	float W = 1.0f;
 	
 	// コンストラクタ
-	FMyQuat() : X(1.0f), Y(0.0f), Z(0.0f), W(0.0f){}
+	FMyQuat() : X(0.0f), Y(0.0f), Z(0.0f), W(1.0f){}
 	FMyQuat(float InX,float InY,float InZ,float InW) : X(InX), Y(InY), Z(InZ), W(InW){}
 
 	static FMyQuat FromFQuat(const FQuat& InVector)
@@ -144,7 +144,7 @@ struct FMyQuat
 	// 回転を考慮しない
 	static FMyQuat IdentityQuat()
 	{
-		return FMyQuat(1.0f, 0.0f, 0.0f, 0.0f);
+		return FMyQuat(0.0f, 0.0f, 0.0f, 1.0f);
 	}
 	
 	// Quaternionの生成
@@ -195,7 +195,25 @@ struct FMyQuat
 		return FMyVector3D(
 			1.0f - 2.0f * (Y * Y + Z * Z),
 			2.0f * (X * Y + W * Z),
-			2.0f * (X * Z - W * Y));
+			2.0f * (X * Z + W * Y));
+	}
+	
+	FMyVector3D GetUpVector() const
+	{
+		return FMyVector3D(
+			2.0f * (X * Z - W * Y),
+			2.0f * (Y * Z + W * X),
+			1.0f - 2.0f * (X * X + Y * Y)
+		);
+	}
+	
+	FMyVector3D GetRightVector() const
+	{
+		return FMyVector3D(
+			2.0f * (X * Y + W * Z),
+			1.0f - 2.0f * (X * X + Z * Z),
+			2.0f * (Y * Z - W * X)
+		);
 	}
 };
 
@@ -211,7 +229,7 @@ struct FMyRotator
 	float Yaw = 0.0f;
 	
 	FMyRotator() : Roll(0.0f), Pitch(0.0f), Yaw(0.0f) {}
-	FMyRotator(float InRoll,float InPitch,float InYaw) : Roll(InRoll),Pitch(InPitch),Yaw(InYaw){}
+	FMyRotator(float InPitch,float InYaw,float InRoll) : Roll(InPitch),Pitch(InYaw),Yaw(InRoll){}
 	
 	// DegをRadに変換
 	static constexpr float DegToRad()

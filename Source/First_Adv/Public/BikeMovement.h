@@ -16,7 +16,7 @@ class USpringArmComponent;
 class UEnhancedInputComponent;
 
 // Bikeの物理計算用構造体
-struct FBikePhysicsState
+struct FBikePhysics
 {
 	// 位置
 	FMyVector3D Position = FMyVector3D::ZeroVector();
@@ -55,6 +55,7 @@ protected:
 	UPROPERTY()
 	TObjectPtr<USpringArmComponent> SpringArmComponent;
 	
+	// Input設定
 	UPROPERTY(EditAnywhere,Category="Input")
 	UInputMappingContext* DefaultMappingContext;
 	UPROPERTY(EditAnywhere,Category="Input")
@@ -65,11 +66,22 @@ protected:
 	UInputAction* IA_Brake;
 	UPROPERTY(EditAnywhere,Category="Input")
 	UInputAction* IA_Steer;
+	UPROPERTY(EditAnywhere,Category="Input")
+	UInputAction* IA_Gear1;
+	UPROPERTY(EditAnywhere,Category="Input")
+	UInputAction* IA_Gear2;
+	UPROPERTY(EditAnywhere,Category="Input")
+	UInputAction* IA_Gear3;
+	UPROPERTY(EditAnywhere,Category="Input")
+	UInputAction* IA_Gear4;
+	UPROPERTY(EditAnywhere,Category="Input")
+	UInputAction* IA_Gear5;
+	UPROPERTY(EditAnywhere,Category="Input")
+	UInputAction* IA_Gear6;
 
 private:
 	// 車体の質量
 	float BikeMass = 200.0f;
-	float Pi = 3.14159265358979323846f;
 	float MaxBrakeForce = 5000.f;
 	// コーナリング剛性
 	float CorneringStiffness = 15.0f;
@@ -97,7 +109,8 @@ private:
 	// 水平方向(Yaw)の回転状態を保持するQuaternion
 	FMyQuat YawRotation = FMyQuat::IdentityQuat();
 	// 1速から6速の各ギア比
-	TArray<float> GearRatios = {2.60f,1.95f,1.55f,1.30f,1.12f,0.98f};
+	UPROPERTY(EditAnywhere,Category="Bike physics|Gear")
+	TArray<float> GearRatios = {0,3.416f,2.25f,1.65f,1.35f,1.166f,1.038f};
 	
 	// キャンバー剛性(N/rad)
 	float CamberStiffness = 800.0f;
@@ -111,7 +124,7 @@ private:
 	float LearnInput = 0.0f;
 	
 	// 状態管理用ステート
-	FBikePhysicsState PhysicsState;
+	FBikePhysics PhysicsState;
 	
 	// 6Dof 剛体物理エンジン
 	FBikeRigidBodyDynamics DynamicsEngine;
@@ -130,13 +143,23 @@ private:
 	float GetEngineTorqueAtRPM(float RPM) const;
 	float CalculateDriveForce(float SpeedMPS);
 	// バンク角を計算して車体を傾ける
-	void BankAngle(float DeltaTime); 
+	void UpdateRotation(float DeltaTime); 
 	float TotalReductionRatio();
 	float CalculateCamberThrust(float LeanAngleRad) const;
-	void UpdateLeanAngle(float deltaTime);
+	void BankAngle(float deltaTime);
 	void OnShiftUp(const FInputActionValue& Value);
 	void OnShiftDown(const FInputActionValue& Value);
 	float LateralAcceleration() const;
 	float CalculateSlipAngle(float SteeringAngleRad) const;
 	float CalculatePacejkaLateralForce(float SlipAngle) const;
+	
+	// ギアチェンジ用関数
+	// テンキー直接指定用関数
+	void SetGearDirectly(int32 NewGear);
+	void OnChangedGear1(){SetGearDirectly(1);}
+	void OnChangedGear2(){SetGearDirectly(2);}
+	void OnChangedGear3(){SetGearDirectly(3);}
+	void OnChangedGear4(){SetGearDirectly(4);}
+	void OnChangedGear5(){SetGearDirectly(5);}
+	void OnChangedGear6(){SetGearDirectly(6);}
 };
