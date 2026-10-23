@@ -1,5 +1,5 @@
-#include "TitleMenuHUD.h"
 #include "TitleGameMode.h"
+#include "TitleMenuHUD.h"
 
 ATitleGameMode::ATitleGameMode()
 {

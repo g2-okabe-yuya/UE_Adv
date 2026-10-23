@@ -4,10 +4,14 @@
 #include "GameFramework/PlayerStart.h"
 
 #include "CoreMinimal.h"
+#include "Kismet/GameplayStatics.h"
 
+// Editor設定をしてくれる
 ASplineMapCreator::ASplineMapCreator()
 {
 	PrimaryActorTick.bCanEverTick = true;
+	SplineComponent = CreateDefaultSubobject<USplineComponent>(TEXT("SplineComponent"));
+	SplineComponent->SetupAttachment(RootComponent);
 
 }
 
@@ -22,80 +26,78 @@ void ASplineMapCreator::Tick(float DeltaTime)
 
 }
 
-// SplineMeshComponentを使用して円形のマップを作成する
-void ASplineMapCreator::GenerateSplineMap()
+// 長方形に長い道を作成する
+void ASplineMapCreator::CreateSplineLongMap()
 {
-	if (!RoadMesh)
+	if (!SplineComponent || !RoadMesh || RoadMeshLength <= 0.0f)
 	{
 		return;
 	}
 
-	TArray<FMyVector3D> ControlPoints = AddControlPoint();
+	// Splineの長さを取得する
+	const float SplineLength = SplineComponent->GetSplineLength();
+	// Local座標に配置をおこなう
+	const ESplineCoordinateSpace::Type CoordSpace = ESplineCoordinateSpace::Local;
+	// RoadLength を 0 からスタートし、Spline の全体長さに達するまでループ
+	float CurrentDistance = 0.0f;
 
-	// 制御点同士の間を SplineMesh で接続（接線は前後の差分で自前計算）
-	for (int32 i = 0; i < ControlPoints.Num(); ++i)
+	// 生成したMeshの長さがSplineの長さを超えるまでループする
+	while (CurrentDistance < SplineLength)
 	{
-		// 次の点を取得
-		int32 NextIndex = i + 1;
-		// 最後の点であれば最初の点とつなげて円にする
-		if (NextIndex >= ControlPoints.Num())
+		// 始点と終点の距離計算
+		float StartDistance = CurrentDistance;
+		// スプラインの終点を超えないように調整
+		float EndDistance = FMath::Min(CurrentDistance + RoadMeshLength, SplineLength);
+		// このセグメントの実際の長さ(最後の端数区間にも対応)
+		float SegmentLength = EndDistance - StartDistance;
+		
+		if (SegmentLength <= SMALL_NUMBER)
 		{
-			NextIndex = 0;
+			break;
 		}
 		
-		int32 PrevIndex = i - 1;
-		// 最初の点なら最後に戻す
-		if (PrevIndex < 0)
+		// 新しいActorを宣言
+		USplineMeshComponent* SplineMeshComponent = NewObject<USplineMeshComponent>(this);
+		if (!SplineMeshComponent)
 		{
-			PrevIndex = ControlPoints.Num() - 1;
+			UE_LOG(LogTemp, Warning, TEXT("SplineMeshComponent is NULL"));
+			break;
 		}
-
-		// 現在の点を格納
-		FMyVector3D StartPos = ControlPoints[i];
-		// 次の点を格納
-		FMyVector3D EndPos = ControlPoints[NextIndex];
-
-		// 接線の計算
-		// T(i) = T(dir) * D
-		// D = |P(i+1)-P(i)| 2点間の距離
-		// 向き＊隣り合う点どうしの距離 = カーブの強さ
-		FMyVector3D StartTangent = (EndPos - ControlPoints[PrevIndex]).Normalize() * FMyVector3D::Distance(StartPos, EndPos);
-		FMyVector3D EndTangent = (ControlPoints[(NextIndex + 1) % ControlPoints.Num()] - StartPos).Normalize() * FMyVector3D::Distance(StartPos, EndPos);
-
-		CreateStaticMeshComponent(StartPos.ToFVector(),EndPos.ToFVector(),StartTangent.ToFVector(),EndTangent.ToFVector());
-	}
-	
-	// スタート地点を決定
-	// 中心から上面の高さまでを取得
-	float MeshHalf = RoadMesh->GetBounds().BoxExtent.Z;
-	GameStartPos = new FMyVector3D(ControlPoints[0].X,ControlPoints[0].Y,ControlPoints[0].Z + MeshHalf*RoadScale.Y + 50);
-	// 点の進行方向ベクトルを取得し回転に変換する
-	FMyVector3D Direction = (ControlPoints[1] - ControlPoints[0]).Normalize();
-	// 方向ベクトルを計算
-	float YawRad =  std::atan2(Direction.X, Direction.Z);
-	constexpr float RadToDeg = 180.0f / 3.14159265358979323846f;
-	float YawDeg = YawRad * RadToDeg;
-	// 進行方向向きにむかせる
-	FMyRotator PlayerStartRotation = FMyRotator(0.0f, YawDeg, 0.0f);
-	
-	// Spawn時に障害物があっても無視して生成する
-	FActorSpawnParameters SpawnParams;
-	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-	UWorld* World = GetWorld();
-	// APlayerStartをワールド座標に動的生成
-	APlayerStart* NewPlayerStartActor = World->SpawnActor<APlayerStart>(
-		APlayerStart::StaticClass(),
-		GameStartPos->ToFVector(),
-		PlayerStartRotation.ToFRotator(),
-		SpawnParams);
-	
-	if (NewPlayerStartActor)
-	{
-		// 1. 生成位置に赤い球体を描画（半径50cm、10秒間表示）
-		DrawDebugSphere(GetWorld(), GameStartPos->ToFVector(), 50.0f, 12, FColor::Red, false, 10.0f, 0, 2.0f);
-
-		// 2. 向き（トランスフォーム）を示す矢印を描画
-		DrawDebugCoordinateSystem(GetWorld(), GameStartPos->ToFVector(), PlayerStartRotation.ToFRotator(), 100.0f, false, 10.0f, 0, 3.0f);
+		// UEに認識・描画してもらう
+		SplineMeshComponent->SetupAttachment(SplineComponent);
+		SplineMeshComponent->SetStaticMesh(RoadMesh);
+		// メッシュの伸びる軸を指定
+		SplineMeshComponent->SetForwardAxis(ESplineMeshAxis::X);
+		SplineMeshComponent->SetMobility(EComponentMobility::Movable);
+		// ワールド登録を行う
+		SplineMeshComponent->RegisterComponentWithWorld(GetWorld());
+		
+		// 進んだ位置の3次元座標を計算
+		FVector StartPos = SplineComponent->GetLocationAtDistanceAlongSpline(StartDistance, CoordSpace);
+		// 方向ベクトルに対してセグメントの長さを乗算した接線を作成
+		FVector StartTangent = SplineComponent->GetDirectionAtDistanceAlongSpline(StartDistance, CoordSpace) * SegmentLength;
+		FVector EndPos = SplineComponent->GetLocationAtDistanceAlongSpline(EndDistance, CoordSpace);
+		FVector EndTangent = SplineComponent->GetDirectionAtDistanceAlongSpline(EndDistance, CoordSpace) * SegmentLength;
+		
+		// マップのねじれを防止する
+		FVector StartUp = SplineComponent->GetUpVectorAtDistanceAlongSpline(StartDistance,CoordSpace);
+		FVector EndUp = SplineComponent->GetUpVectorAtDistanceAlongSpline(EndDistance, CoordSpace);
+		SplineMeshComponent->SetSplineUpDir(StartUp, false);
+		
+		// 横幅などの設定
+		SplineMeshComponent->SetStartScale(RoadScale,false);
+		SplineMeshComponent->SetEndScale(RoadScale, false);
+		// Posの決定
+		SplineMeshComponent->SetStartAndEnd(StartPos, StartTangent, EndPos, EndTangent, true);
+		// Collisionを有効化する
+		SplineMeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+		// Collisionのレイヤーを決定する
+		// 一旦普通の設定ゲームのボリュームが増えてきたらEditorで触るから書くことなさそう
+		SplineMeshComponent->SetCollisionObjectType(ECC_WorldStatic);
+		SplineMeshComponent->SetCollisionResponseToAllChannels(ECR_Block);
+		
+		SplineMeshComponent->RegisterComponentWithWorld(GetWorld());
+		CurrentDistance += RoadMeshLength;
 	}
 }
 
@@ -154,4 +156,71 @@ TArray<FMyVector3D> ASplineMapCreator::AddControlPoint() const
 	}
 	
 	return Points;
+}
+
+// Start地点にStartPointを作成する
+void ASplineMapCreator::CreateStartPoint(FMyVector3D StartPosition,FMyVector3D NextPosition)
+{
+	TArray<AActor*> StartPoints;
+	UGameplayStatics::GetAllActorsOfClass(GetWorld(), APlayerStart::StaticClass(), StartPoints);
+
+	for (AActor* StartPoint : StartPoints)
+	{
+		if (IsValid(StartPoint))
+		{
+			StartPoint->Destroy();
+		}
+	}
+	// スタート地点を決定
+	// 中心から上面の高さまでを取得
+	float MeshHalf = RoadMesh->GetBounds().BoxExtent.Z;
+	GameStartPos = new FMyVector3D(StartPosition.X,StartPosition.Y,StartPosition.Z + MeshHalf*RoadScale.Y + 50);
+	// 点の進行方向ベクトルを取得し回転に変換する
+	FMyVector3D Direction = (NextPosition - StartPosition).Normalize();
+	// 方向ベクトルを計算
+	float YawRad =  std::atan2(Direction.X, Direction.Z);
+	constexpr float RadToDeg = 180.0f / 3.14159265358979323846f;
+	float YawDeg = YawRad * RadToDeg;
+	// 進行方向向きにむかせる
+	FMyRotator PlayerStartRotation = FMyRotator(0.0f, 0.0f, 0.0f);
+	
+	// Spawn時に障害物があっても無視して生成する
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	UWorld* World = GetWorld();
+	// APlayerStartをワールド座標に動的生成
+	APlayerStart* NewPlayerStartActor = World->SpawnActor<APlayerStart>(
+		APlayerStart::StaticClass(),
+		GameStartPos->ToFVector(),
+		PlayerStartRotation.ToFRotator(),
+		SpawnParams);
+	
+	if (NewPlayerStartActor)
+	{
+		// 1. 生成位置に赤い球体を描画（半径50cm、10秒間表示）
+		DrawDebugSphere(GetWorld(), GameStartPos->ToFVector(), 50.0f, 12, FColor::Red, false, 10.0f, 0, 2.0f);
+
+		// 2. 向き（トランスフォーム）を示す矢印を描画
+		DrawDebugCoordinateSystem(GetWorld(), GameStartPos->ToFVector(), PlayerStartRotation.ToFRotator(), 100.0f, false, 10.0f, 0, 3.0f);
+	}
+}
+
+// Editorで生成されるMeshを確認する
+void ASplineMapCreator::OnConstruction(const FTransform& Transform)
+{
+	Super::OnConstruction(Transform);
+	
+	// 1. エディタ上で再生成された時に古くなった既存の SplineMeshComponent を削除
+	TArray<USplineMeshComponent*> ExistingMeshes;
+	GetComponents<USplineMeshComponent>(ExistingMeshes);
+	for (USplineMeshComponent* MeshComp : ExistingMeshes)
+	{
+		if (MeshComp)
+		{
+			MeshComp->DestroyComponent(); // 古いメッシュを消去
+		}
+	}
+	
+	// 2. プレビュー用のメッシュを生成
+	CreateSplineLongMap();
 }

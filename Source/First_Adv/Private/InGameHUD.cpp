@@ -1,8 +1,4 @@
 #include "InGameHUD.h"
-
-#include "GameManager.h"
-#include "Components/Button.h"
-#include "InputCoreTypes.h"
 #include "Blueprint/WidgetBlueprintLibrary.h"
 #include "Components/TextBlock.h"
 #include "Kismet/GameplayStatics.h"
@@ -11,189 +7,279 @@
 // クラスの定義と実体を結びつける
 void UInGameHUD::NativeConstruct()
 {
-	// Super = base
 	Super::NativeConstruct();
-	// キー入力を受け付けるようにする
-	//SetIsFocusable(true);
+	// GameOverPanelを非アクティブ化
+	if (GameResultBlur)
+	{
+		GameResultBlur->SetVisibility(ESlateVisibility::Collapsed);
+	}
 	
-	// Button_AdvのOnClickedにOnButtonClickedを結びつける
-	//Adv_Button->OnClicked.AddUniqueDynamic(this, &UAdvHUD::OnAdvButtonClicked);
-	
-	// if (UGameInstance* GameInstance = GetGameInstance())
-	// {
-	// 	// nullチェックを行い、公開関数を呼び出す
-	// 	if (UAdvSubSystem* SubSystem = GameInstance->GetSubsystem<UAdvSubSystem>())
-	// 	{
-	// 		// シナリオを呼び出す
-	// 		if (SubSystem->IsDataLoaded())
-	// 		{
-	// 			OnScenarioDataLoadSuccess();
-	// 		}
-	// 		else
-	// 		{
-	// 			// 通知が飛んで来たら処理を実行する
-	// 			SubSystem->OnDataLoaded.AddUObject(this,&UAdvHUD::OnScenarioDataLoadSuccess);
-	// 		}
-	// 	}
-	// }
+	// ボタンに遷移処理をバインド
+	GameClearTitleButton->OnClicked.AddUniqueDynamic(this, &UInGameHUD::OnButtonTitleClicked);
+	GameClearContinueButton->OnClicked.AddUniqueDynamic(this, &UInGameHUD::OnButtonContinueClicked);
+	GameOverContinueButton->OnClicked.AddUniqueDynamic(this, &UInGameHUD::OnButtonContinueClicked);
+	GameOverTitleButton->OnClicked.AddUniqueDynamic(this, &UInGameHUD::OnButtonTitleClicked);
+	CountdownTimer = CountdownValue;
+	Tachometer->SetVisibility(ESlateVisibility::Visible);
+	BindToBikeMovement();
 }
 
-void UInGameHUD::ShowGameOverPanel()
+void UInGameHUD::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 {
-	// WidgetBlueprintのClassを取得する
-	FString GameOverWidgetPath = TEXT("Game/BluePrints/UI/BPW_GameOver.BPW_GameOver");
-	TSubclassOf<UUserWidget> GameOverWidgetClass = TSoftClassPtr<UUserWidget>(FSoftObjectPath(*GameOverWidgetPath)).LoadSynchronous();
-	
-	// PlayerControllerを取得する
-	APlayerController* PlayerController = UGameplayStatics::GetPlayerController(GetWorld(),0);
-	
-	if (GameOverWidgetClass && PlayerController)
+	Super::NativeTick(MyGeometry, InDeltaTime);
+
+	if (NeedleImage)
 	{
-		// GameOver用のWidgetを作成する
-		GameOverWidget = UWidgetBlueprintLibrary::Create(GetWorld(),GameOverWidgetClass,PlayerController);
-		
-		// GameOverメニューを折りたたみ状態にする
-		GameOverWidget->SetVisibility(ESlateVisibility::Collapsed);
-		
-		// ViewPortに追加する
-		GameOverWidget->AddToViewport(0);
+		// 現在の角度から目標角度へ滑らかに補間 (FInterpTo)
+		CurrentNeedleAngle = FMath::FInterpTo(CurrentNeedleAngle, TargetNeedleAngle, InDeltaTime, NeedleInterpSpeed);
+		// 画像の回転角を更新
+		NeedleImage->SetRenderTransformAngle(CurrentNeedleAngle);
 	}
 }
 
-void UInGameHUD::DispGameOver()
+// Continueボタンが押されたときの処理
+void UInGameHUD::OnButtonContinueClicked()
 {
-	// GameOverWidgetを表示する
-	GameOverWidget->SetVisibility(ESlateVisibility::Visible);
-	
-	// PlayerControllerを取得する
-	APlayerController* PlayerController = GetOwningPlayer();
-	
-	// UIモードに設定する
-	UWidgetBlueprintLibrary::SetInputMode_UIOnlyEx(PlayerController,GameOverWidget,EMouseLockMode::DoNotLock,false);
-	
-	// GameをPause状態にする
-	UGameplayStatics::SetGamePaused(GetWorld(),true);
-	
-	// Mouseカーソルを表示する
-	PlayerController->SetShowMouseCursor(true);
-}
-
-// コンティニュー処理
-void UInGameHUD::ContinueGame()
-{
-	// AGameManager* GameManager = Cast<AGameManager>(AGameManager::GetGameInstance());
-	//
-	// GameManager->Initialize();
-	//
-	// // 現在のレベルネームを取得する
-	// const FString CurrentLevelName = UGameplayStatics::GetCurrentLevelName(GetWorld());
-	//
-	// // 現在のレベルを開きなおす
-	// UGameplayStatics::OpenLevel(GetWorld(),FName(*CurrentLevelName));
-}
-
-// SubSystemから通知が飛んで来たらよびだされる関数
-void UInGameHUD::OnScenarioDataLoadSuccess()
-{
-	if (UGameInstance* GameInstance = GetGameInstance())
+	if (OnContinueRequested.IsBound())
 	{
-		if (UAdvSubSystem* SubSystem = GameInstance->GetSubsystem<UAdvSubSystem>())
+		OnContinueRequested.Broadcast();
+	}
+}
+
+// Titleに戻る
+void UInGameHUD::OnButtonTitleClicked()
+{
+	if (OnTitleRequested.IsBound())
+	{
+		OnTitleRequested.Broadcast();
+	}
+}
+
+// 1秒ごとにカウントダウンを更新する
+void UInGameHUD::UpdateCountDown()
+{
+	if (!CountdownText || !PopAnimation)
+	{
+		return;
+	}
+	
+	if (CountdownTimer > 0)
+	{
+		// 数字テキストを設定
+		CountdownText->SetText(FText::AsNumber(CountdownTimer));
+		
+		// Animation再生
+		PlayAnimation(PopAnimation);
+		
+		CountdownTimer--;
+		
+		GetWorld()->GetTimerManager().SetTimer(CountdownTimerHandle,this,&UInGameHUD::UpdateCountDown,1.0f, false);
+	}
+	else if (CountdownTimer == 0)
+	{
+		// 「GO!」の表示
+		CountdownText->SetText(FText::FromString(TEXT("GO!")));
+		PlayAnimation(PopAnimation);
+		
+		// リザルト用のタイマーをスタートさせる
+		if (OnTimerStarted.IsBound())
 		{
-			ScenarioData = SubSystem->GetAllScenarioData();
-			UE_LOG(LogTemp, Log, TEXT("[AdvHUD] 受け取ったシナリオデータ数: %d 件"), ScenarioData.Num());
-			// シナリオの呼び出し
-			ShowScenario("SO001_01");
+			OnTimerStarted.Broadcast();
 		}
-	}
-}
 
-// 次のシナリオを表示する
-void UInGameHUD::ShowScenario(FName ScenarioID)
-{
-	// 該当する行のポインタを保持する変数
-	const FScenarioRowType* FoundRow = nullptr;
-	int32 FoundIndex = INDEX_NONE;
-	
-	if (!ScenarioID.IsNone())
-	{
-		for (int32 i = 0; i < ScenarioData.Num(); ++i)
+		CountdownTimer--;
+
+		// バイクの操作ロックを解除する
+		if (OnCountdownFinished.IsBound())
 		{
-			if (ScenarioData[i].TextID == ScenarioID.ToString())
+			OnCountdownFinished.Broadcast();
+		}
+		
+		// 1.0秒後にカウントダウンテキストを非表示にする
+		GetWorld()->GetTimerManager().SetTimer(CountdownTimerHandle,FTimerDelegate::CreateLambda([this]
 			{
-				FoundRow = &ScenarioData[i]; 
-				FoundIndex = i;              
-				break;               
-			}
-		}
+				if (CountdownText)
+				{
+					CountdownText->SetVisibility(ESlateVisibility::Collapsed);
+				}
+			}),1.0f,false);
+	}
+}
+
+// カウントダウンと開始
+void UInGameHUD::StartCountdown()
+{
+	// タイマー数値を設定値に設定する
+	CountdownTimer = CountdownValue;
+	if (CountdownText)
+	{
+		CountdownText->SetVisibility(ESlateVisibility::Visible);
 	}
 	
-	// ScenarioIDから該当する行を検索する
-	// iのDialogueがほしい
-	/*
-	for (const FScenarioRowType& Row : ScenarioData)
+	// カウントダウンを再生する
+	UpdateCountDown();
+}
+
+// GameClear時にUIを表示する
+void UInGameHUD::DisplayGameClear(float ClearTime)
+{
+	if (!GameOverBorder)
 	{
-			*Row.TextID.ToString(), *ScenarioID.ToString());
-		if (Row.TextID == ScenarioID.ToString())
-		{
-			// 対象の行を見つけたらアドレスを保存しておく
-			FoundRow = &Row;
-			break;
-		}
+		return;
 	}
-	*/
-	
-	// NextIDの記載(ジャンプ先がなければ次のダイアログを表示する)
-	if (FoundRow == nullptr)
+	Tachometer->SetVisibility(ESlateVisibility::Collapsed);
+	// GameOver用のBorderを表示、GameClear用のBorderを非表示
+	if (GameClearBorder)
 	{
-		int32 NextIndex = CurrentScenarioIndex + 1;
-		if (ScenarioData.IsValidIndex(NextIndex))
-		{
-			FoundRow = &ScenarioData[NextIndex];
-			FoundIndex = NextIndex;
-			UE_LOG(LogTemp, Log, TEXT("[AdvHUD] NextID未記載、次の行 (Index: %d) を表示"), NextIndex);
-		}
+		GameClearBorder->SetVisibility(ESlateVisibility::Visible);
+	}
+	if (GameOverBorder)
+	{
+		// GameOverのBorderは非表示にする
+		GameOverBorder->SetVisibility(ESlateVisibility::Collapsed);
 	}
 	
-	// UI更新
-	if (FoundRow != nullptr)
+	// タイムテキストを非表示
+	if (ClearTimeText)
 	{
-		CurrentScenarioIndex = FoundIndex;
-		CurrentScenarioID = FName(*FoundRow->NextID.ToString());
-		
-		if (Dialogue != nullptr)
+		// タイムテキストを表示する
+		int32 Minutes = FMath::FloorToInt(ClearTime / 60.0f);
+		int32 Seconds = FMath::FloorToInt(FMath::Fmod(ClearTime, 60.0f));
+		int32 Millis  = FMath::FloorToInt(FMath::Fmod(ClearTime * 100.0f, 100.0f));
+
+		FString FormattedTime = FString::Printf(TEXT("Time : %02d:%02d.%02d"), Minutes, Seconds, Millis);
+		ClearTimeText->SetText(FText::FromString(FormattedTime));
+		ClearTimeText->SetVisibility(ESlateVisibility::Visible);
+	}
+	
+	GameResultBlur->SetVisibility(ESlateVisibility::Visible);
+	
+	APlayerController* PlayerController = GetOwningPlayer();
+	if (!PlayerController)
+	{
+		PlayerController = UGameplayStatics::GetPlayerController(GetWorld(), 0);
+	}
+
+	if (PlayerController)
+	{
+		UWidgetBlueprintLibrary::SetInputMode_UIOnlyEx(PlayerController, nullptr, EMouseLockMode::DoNotLock, false);
+		UGameplayStatics::SetGamePaused(GetWorld(), true);
+		PlayerController->SetShowMouseCursor(true);
+	}
+}
+
+// GameOver時にUIを表示する
+void UInGameHUD::DisplayGameOver()
+{
+	if (GameResultBlur)
+	{
+		// 非表示だったGameOverBlurを表示状態にする
+		Tachometer->SetVisibility(ESlateVisibility::Collapsed);
+		GameResultBlur->SetVisibility(ESlateVisibility::Visible);
+		GameOverBorder->SetVisibility(ESlateVisibility::Visible);
+		GameClearBorder->SetVisibility(ESlateVisibility::Collapsed);
+
+		APlayerController* PlayerController = GetOwningPlayer();
+		if (!PlayerController)
 		{
-			// 本文を表示
-			Dialogue->SetText(FoundRow->Dialogue);
+			PlayerController = UGameplayStatics::GetPlayerController(GetWorld(), 0);
 		}
-		else
+
+		if (PlayerController)
 		{
-			UE_LOG(LogTemp, Error, TEXT("[AdvHUD] 本文を取得できませんでした"));
+			// UI操作モードに変更し、ポーズ＆マウスカーソル表示
+			UWidgetBlueprintLibrary::SetInputMode_UIOnlyEx(PlayerController, nullptr, EMouseLockMode::DoNotLock, false);
+			UGameplayStatics::SetGamePaused(GetWorld(), true);
+			PlayerController->SetShowMouseCursor(true);
 		}
+	}
+}
+
+// バイクのイベントをバインドする
+void UInGameHUD::BindToBikeMovement()
+{
+	// PlayerControllerを取得
+	APlayerController* PlayerController = GetOwningPlayer();
+	if (!PlayerController)
+	{
+		PlayerController = UGameplayStatics::GetPlayerController(GetWorld(), 0);
+	}
+
+	// Levelに配置されているバイクを取得する
+	ABikeMovement* Bike = nullptr;
+	// Playerが操作しているBikeを指定
+	if (PlayerController)
+	{
+		Bike = Cast<ABikeMovement>(PlayerController->GetPawn());
+	}
+	
+	// Playerがバイクを操作していなかった場合はWorldにあるバイクを取得する
+	if (!Bike)
+	{
+		Bike = Cast<ABikeMovement>(UGameplayStatics::GetActorOfClass(GetWorld(), ABikeMovement::StaticClass()));
+	}
+	
+	if (Bike)
+	{
+		// バイクを取得することができたらターゲットに設定する
+		TargetBike = Bike;
+		// 購読処理
+		// スピードが変化したときにUIを更新する
+		Bike->OnSpeedChanged.AddUObject(this, &UInGameHUD::UpdateCurrentSpeedMeter);
+		// エンジン回転数が変化したときUIを更新する
+		Bike->OnRpmChanged.AddUObject(this, &UInGameHUD::UpdateCurrentRpm);
+		// ギアが変化したときにギア更新処理を呼び出す
+		Bike->OnGearTextChanged.AddUObject(this, &UInGameHUD::UpdateCurrentGear);
+		// バイクが落下したらゲームオーバーを呼び出す
+		Bike->OnDead.AddUObject(this, &UInGameHUD::OnBikeDead);
 	}
 	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[AdvHUD] シナリオの最後です"));
-		CurrentScenarioID = NAME_None;
+		FTimerHandle RetryTimerHandle;
+		GetWorld()->GetTimerManager().SetTimer(RetryTimerHandle, this, &UInGameHUD::BindToBikeMovement, 0.1f, false);
 	}
 }
 
-//　テキスト送りを検知する
-FReply UInGameHUD::NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
+// バイクが死んだら呼び出す関数
+void UInGameHUD::OnBikeDead(bool IsDead)
 {
-	if (InMouseEvent.GetEffectingButton() ==EKeys::LeftMouseButton)
+	if (IsDead)
 	{
-		OnAdvMouseClicked();
-		return FReply::Handled();
+		DisplayGameOver();
 	}
-	
-	return FReply::Unhandled();
 }
 
-// 左マウスクリック時に次のシナリオを表示する
-void UInGameHUD::OnAdvMouseClicked()
+// 回転数の表示
+// 回転数に比例してギアのスライダーも変化させる
+void UInGameHUD::UpdateCurrentRpm(float CurrentRpm) const
 {
-	if (!CurrentScenarioID.IsNone() || ScenarioData.IsValidIndex(CurrentScenarioIndex + 1))
+	if (!NeedleImage)
 	{
-		ShowScenario(CurrentScenarioID);
+		return;
 	}
+    
+	// 回転数を0.0～1.0に正規化
+	float Alpha = FMath::Clamp((CurrentRpm - MinRPM) / (MaxRPM - MinRPM), 0.0f, 1.0f);
+    
+	// 基本の目標角度を計算
+	float BaseTargetAngle = FMath::Lerp(MinAngle, MaxAngle, Alpha);
+
+	// 回転数が高いほど震えを大きくする
+	float Jitter = FMath::RandRange(-VibrationIntensity, VibrationIntensity) * Alpha;
+
+	// 震えを加算した最終的な目標角度を設定
+	const_cast<UInGameHUD*>(this)->TargetNeedleAngle = BaseTargetAngle + Jitter;
+}
+
+// 現在のSpeedをUIに更新する
+void UInGameHUD::UpdateCurrentSpeedMeter(float CurrentSpeed) const
+{
+	// floatをテキスト型にして更新
+	CurrentSpeedText->SetText(FText::AsNumber(CurrentSpeed));
+}
+
+// 現在のギアを更新する
+void UInGameHUD::UpdateCurrentGear(int32 CurrentGear) const
+{
+	CurrentGearText->SetText(FText::Format(FText::FromString(TEXT("{0}")),FText::AsNumber(CurrentGear)));
 }
