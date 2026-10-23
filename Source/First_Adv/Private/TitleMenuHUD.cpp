@@ -1,7 +1,6 @@
-
+#include "TitleMenuHUD.h"
 #include "Kismet/GameplayStatics.h"
 #include "Blueprint/WidgetBlueprintLibrary.h"
-#include "TitleMenuHUD.h"
 #include "Blueprint/UserWidget.h"
 
 void ATitleMenuHUD::BeginPlay()

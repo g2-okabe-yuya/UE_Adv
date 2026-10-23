@@ -28,7 +28,7 @@ private:
 	void OnButtonContinueClicked();
 	
 	// ButtonTitleのOnClickedイベントに関連づける
-	//UFUNCTION()
-	//void OnButtonTitleClicked();
+	UFUNCTION()
+	void OnButtonTitleClicked();
 };
 

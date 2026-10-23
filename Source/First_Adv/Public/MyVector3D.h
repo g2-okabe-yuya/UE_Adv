@@ -210,9 +210,9 @@ struct FMyQuat
 	FMyVector3D GetRightVector() const
 	{
 		return FMyVector3D(
-			2.0f * (X * Y + W * Z),
+			2.0f * (X * Y - W * Z),
 			1.0f - 2.0f * (X * X + Z * Z),
-			2.0f * (Y * Z - W * X)
+			2.0f * (Y * Z + W * X)
 		);
 	}
 };
@@ -229,7 +229,7 @@ struct FMyRotator
 	float Yaw = 0.0f;
 	
 	FMyRotator() : Roll(0.0f), Pitch(0.0f), Yaw(0.0f) {}
-	FMyRotator(float InPitch,float InYaw,float InRoll) : Roll(InPitch),Pitch(InYaw),Yaw(InRoll){}
+	FMyRotator(float InPitch,float InYaw,float InRoll) : Roll(InRoll),Pitch(InPitch),Yaw(InYaw){}
 	
 	// DegをRadに変換
 	static constexpr float DegToRad()
